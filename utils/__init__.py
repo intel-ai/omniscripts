@@ -4,6 +4,7 @@ from .utils import (
     combinate_requirements,
     compare_dataframes,
     convert_type_ibis2pandas,
+    DataFileParser,
     execute_process,
     files_names_from_pattern,
     find_free_port,
@@ -19,3 +20,5 @@ from .utils import (
     remove_fields_from_dict,
     convert_units,
 )
+
+from .interface import create_cli

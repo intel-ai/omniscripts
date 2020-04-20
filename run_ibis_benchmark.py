@@ -21,7 +21,6 @@ def main():
     omniscript_path = os.path.dirname(__file__)
     args = None
     omnisci_server = None
-    port_default_value = -1
 
     benchmarks = {
         "ny_taxi": "taxi",
@@ -184,21 +183,21 @@ def main():
     optional.add_argument(
         "-port",
         dest="port",
-        default=port_default_value,
+        default=find_free_port(),
         type=int,
         help="TCP port number to run omnisci_server on.",
     )
     optional.add_argument(
         "-http_port",
         dest="http_port",
-        default=port_default_value,
+        default=find_free_port(),
         type=int,
         help="HTTP port number to run omnisci_server on.",
     )
     optional.add_argument(
         "-calcite_port",
         dest="calcite_port",
-        default=port_default_value,
+        default=find_free_port(),
         type=int,
         help="Calcite port number to run omnisci_server on.",
     )
@@ -297,13 +296,6 @@ def main():
         omnisci_server = None
 
         args = parser.parse_args()
-
-        if args.port == port_default_value:
-            args.port = find_free_port()
-        if args.http_port == port_default_value:
-            args.http_port = find_free_port()
-        if args.calcite_port == port_default_value:
-            args.calcite_port = find_free_port()
 
         run_benchmark = __import__(benchmarks[args.bench_name]).run_benchmark
 

@@ -9,14 +9,15 @@ except ImportError:
     sys.exit("Please run the script from (base) conda environment")
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from utils import execute_process
+from utils import execute_process, combinate_requirements
 
 
 class CondaEnvironment:
     "Manage conda environments(create, remove, etc.)"
 
-    def __init__(self, name):
+    def __init__(self, name, env_save):
         self.name = name
+        self.env_save = env_save
 
     def is_env_exist(self, name=None):
         env_name = name if name else self.name
@@ -98,3 +99,25 @@ class CondaEnvironment:
             )
             if return_code != 0:
                 raise Exception(f"Conda run returned {return_code}.")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exception_type, exception_val, trace):
+        if not self.save_env:
+            self.remove()
+
+
+def create_conda_env(
+    ibis_path, env_name, env_check, env_save, python_version, custom_requirements
+):
+    ibis_requirements = os.path.join(ibis_path, "ci", f"requirements-{python_version}-dev.yml")
+    requirements_file = "requirements.yml"
+
+    conda_env = CondaEnvironment(env_name, env_save)
+
+    print("PREPARING ENVIRONMENT")
+    combinate_requirements(ibis_requirements, custom_requirements, requirements_file)
+    conda_env.create(env_check, requirements_file=requirements_file)
+
+    return conda_env

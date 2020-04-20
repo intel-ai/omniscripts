@@ -302,6 +302,15 @@ class KeyValueListParser(argparse.Action):
         setattr(namespace, self.dest, kwargs)
 
 
+class DataFileParser(argparse.Action):
+    def __call__(self, parser, namespace, value, option_string=None):
+        if not value:
+            raise ValueError(
+                f"Parameter --data_file was received empty, but it is required for benchmarks"
+            )
+        setattr(namespace, self.dest, f"'{value}'")
+
+
 def check_fragments_size(fragments_size, count_table, import_mode, default_fragments_size=None):
     result_fragments_size = []
     check_options = {
