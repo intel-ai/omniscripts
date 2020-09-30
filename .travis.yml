@@ -3,8 +3,44 @@ python:
   - "3.7"
 # command to install dependencies
 install:
+  - CWD="$PWD"
+  - cd ..
+
+  # Install conda
+  - wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh;
+  - bash miniconda.sh -b -p $HOME/miniconda
+  - source "$HOME/miniconda/etc/profile.d/conda.sh"
+  - hash -r
+  - conda config --set always_yes yes --set changeps1 no
+  - conda update -q conda
+  # Useful for debugging any issues with conda
+  - conda info -a
+
+  # for static test
   - pip install black flake8 flake8-per-file-ignores
+
+  - git clone https://github.com/intel-ai/omniscidb.git && cd omniscidb
+  - git checkout modin && git log -1
+  - conda env create -f scripts/mapd-deps-conda-dev-env.yml --force
+  - conda activate omnisci-dev
+  - bash scripts/conda/build-install-all.sh
+  - conda install matplotlib sqlalchemy pytest-custom-exit-code pytest-cov pytest -c conda-forge
+  - conda list
+  - conda deactivate
+  - cd ..
+
+  - git clone https://github.com/intel-ai/modin.git && cd modin
+  - git checkout omnisci-on-ray && git log -1
+  - cd ..
+
 # command to run tests
 script:
+  # - pytest modin/experimental/engines/omnisci_on_ray/test/test_dataframe.py --import-mode=importlib
+  - cd "$CWD"
   - black . --check
   - flake8
+
+  - cd ../omniscripts
+  - conda env list
+  - conda deactivate
+  - python run_ibis_tests.py -executable $CWD/../omniscidb/build/bin/omnisci_server -task build,benchmark --env_name test-env --env_check True --save_env True --modin_path $CWD/../modin/ -data_file $CWD/data/census1k.csv -dfiles_num 1 -bench_name census -no_ibis true -pandas_mode Modin_on_omnisci -no_ml true
