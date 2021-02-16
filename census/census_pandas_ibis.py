@@ -27,11 +27,13 @@ warnings.filterwarnings("ignore")
 # https://rapidsai-data.s3.us-east-2.amazonaws.com/datasets/ipums_education2income_1970-2010.csv.gz
 
 
-def etl_pandas(filename, columns_names, columns_types, etl_keys, pandas_mode):
+def etl_pandas(
+    filename, columns_names, columns_types, etl_keys, pandas_mode, validation_modin=False
+):
     etl_times = {key: 0.0 for key in etl_keys}
 
     t0 = timer()
-    if pandas_mode == "Modin_on_omnisci":
+    if pandas_mode == "Modin_on_omnisci" and not validation_modin:
         df = load_data_modin_on_omnisci(
             filename=filename,
             columns_names=columns_names,
@@ -47,7 +49,9 @@ def etl_pandas(filename, columns_names, columns_types, etl_keys, pandas_mode):
             header=0,
             nrows=None,
             use_gzip=filename.endswith(".gz"),
-            pd=run_benchmark.__globals__["pd"],
+            pd=run_benchmark.__globals__["pandas"]
+            if validation_modin
+            else run_benchmark.__globals__["pd"],
         )
     etl_times["t_readcsv"] = timer() - t0
 
@@ -295,6 +299,7 @@ def ml(X, y, random_state, n_runs, test_size, optimizer, ml_keys, ml_score_keys)
             X, y, test_size=test_size, random_state=random_state, optimizer=optimizer
         )
         ml_times["t_train_test_split"] += split_time
+
         random_state += 777
 
         t0 = timer()
@@ -329,6 +334,12 @@ def ml(X, y, random_state, n_runs, test_size, optimizer, ml_keys, ml_score_keys)
 
 def run_benchmark(parameters):
     check_support(parameters, unsupported_params=["dfiles_num", "gpu_memory"])
+
+    validation_modin = (
+        parameters["validation"]
+        and parameters["no_ibis"]
+        and parameters["pandas_mode"] != "Pandas"
+    )
 
     parameters["data_file"] = parameters["data_file"].replace("'", "")
     parameters["optimizer"] = parameters["optimizer"] or "intel"
@@ -445,13 +456,21 @@ def run_benchmark(parameters):
             ray_tmpdir=parameters["ray_tmpdir"],
             ray_memory=parameters["ray_memory"],
         )
+    if validation_modin:
+        import pandas
+
+        run_benchmark.__globals__["pandas"] = pandas
 
     etl_times_ibis = None
     ml_times_ibis = None
     etl_times = None
     ml_times = None
 
-    if parameters["validation"] and parameters["import_mode"] != "pandas":
+    if (
+        parameters["validation"]
+        and not parameters["no_ibis"]
+        and parameters["import_mode"] != "pandas"
+    ):
         print(
             f"WARNING: validation can not be performed, it works only for 'pandas' \
                 import mode, '{parameters['import_mode']}' passed"
@@ -512,6 +531,22 @@ def run_benchmark(parameters):
             pandas_mode=parameters["pandas_mode"],
         )
 
+        if validation_modin:
+            df_pandas, _, _, _ = etl_pandas(
+                parameters["data_file"],
+                columns_names=columns_names,
+                columns_types=columns_types,
+                etl_keys=etl_keys,
+                pandas_mode=parameters["pandas_mode"],
+                validation_modin=True,
+            )
+            compare_dataframes(
+                ibis_dfs=[df._to_pandas()],
+                pandas_dfs=[df_pandas],
+                sort_cols=[],
+                drop_cols=[],
+            )
+
         print_results(results=etl_times, backend=parameters["pandas_mode"], unit="s")
         etl_times["Backend"] = parameters["pandas_mode"]
         etl_times["dataset_size"] = csv_size
@@ -532,7 +567,11 @@ def run_benchmark(parameters):
             print_results(results=ml_scores, backend=parameters["pandas_mode"])
             ml_scores["Backend"] = parameters["pandas_mode"]
 
-    if parameters["validation"] and parameters["import_mode"] == "pandas":
+    if (
+        parameters["validation"]
+        and not parameters["no_ibis"]
+        and parameters["import_mode"] == "pandas"
+    ):
         # this should work only for pandas mode
         compare_dataframes(ibis_dfs=(X_ibis, y_ibis), pandas_dfs=(X, y))
 

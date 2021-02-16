@@ -351,6 +351,10 @@ def main():
         launch_omnisci_server = (
             not args.no_ibis and args.bench_name in benchmarks_with_ibis_queries
         )
+        # for census we can compare pandas and modin outputs
+        turn_off_validation = (
+            args.bench_name != "census" and args.validation and (args.no_pandas or args.no_ibis)
+        )
 
         if args.port == port_default_value:
             args.port = find_free_port()
@@ -407,7 +411,7 @@ def main():
             parameters["import_mode"] = args.import_mode
             parameters["fragments_size"] = args.fragments_size
 
-        if parameters["validation"] and (parameters["no_pandas"] or parameters["no_ibis"]):
+        if turn_off_validation:
             parameters["validation"] = False
             print("WARNING: validation was turned off as it requires both sides to compare.")
 
